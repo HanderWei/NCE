@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">NCE</string>
+    <string name="content_authority">me.chen_wei.nce.app</string>
+
+    <string name="level_0">初级</string>
+    <string name="level_1">一级</string>
+    <string name="level_2">二级</string>
+    <string name="level_3">三级</string>
+    <string name="level_4">四级</string>
+    <string name="clear">清除标记</string>
+</resources>
