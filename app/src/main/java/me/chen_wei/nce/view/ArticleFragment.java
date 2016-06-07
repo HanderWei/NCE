@@ -54,9 +54,6 @@ public class ArticleFragment extends Fragment {
     private int mScrollerX;
     private int mScrollerY;
 
-    private static final String TEXTVIEW_VISIBLE = "text_view_visible";
-
-
     public ArticleFragment() {
 
     }
@@ -179,7 +176,6 @@ public class ArticleFragment extends Fragment {
         //TODO 保存ScrollerView 滚动位置
         outState.putInt(SCROLLER_X, mScrollerView.getScrollX());
         outState.putInt(SCROLLER_Y, mScrollerView.getScrollY());
-//        outState.putInt(TEXTVIEW_VISIBLE, mContentTv.getViewTreeObserver().);
     }
 
     @Override
