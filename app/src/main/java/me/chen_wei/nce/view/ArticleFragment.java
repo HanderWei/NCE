@@ -2,6 +2,7 @@ package me.chen_wei.nce.view;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -42,9 +43,19 @@ public class ArticleFragment extends Fragment {
 
     private static final String REGEX = "\\w+";
 
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s");
+
     private String content;
     private TextView mContentTv;
     private ScrollView mScrollerView;
+    private static final String SCROLLER_X = "scroller_x";
+    private static final String SCROLLER_Y = "scroller_y";
+
+    private int mScrollerX;
+    private int mScrollerY;
+
+    private static final String TEXTVIEW_VISIBLE = "text_view_visible";
+
 
     public ArticleFragment() {
 
@@ -107,58 +118,41 @@ public class ArticleFragment extends Fragment {
             default:
                 level = -1;
         }
-        highlightWords(level);
+        new HighLightTask().execute(level);
         return super.onOptionsItemSelected(item);
-    }
-
-    private void highlightWords(int level) {
-        if (level < 0) {
-            return;
-        }
-        if (content != null) {
-            Pattern p = Pattern.compile(REGEX);
-            Matcher m = p.matcher(content);
-            Spannable spanText = Spannable.Factory.getInstance().newSpannable(content);
-            NCEDbHelper dbHelper = new NCEDbHelper(getActivity());
-            SQLiteDatabase db = dbHelper.getReadableDatabase();
-            Cursor cursor = null;
-            while (m.find()) {
-                String[] args = {m.group()};
-                cursor = db.query(
-                        NCEContract.WordEntry.TABLE_NAME,
-                        WORDS_COLUMNS,
-                        "word=?",
-                        args,
-                        null,
-                        null,
-                        null
-                );
-                if (cursor.moveToPosition(0) && cursor.getInt(COL_LEVEL) <= level) {
-                    spanText.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.colorPrimary)), m.start(), m.end(), Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
-                }
-            }
-            mContentTv.setText(spanText);
-            if (!cursor.isClosed()) {
-                cursor.close();
-            }
-            db.close();
-        }
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable final ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_article, container, false);
         mScrollerView = (ScrollView) rootView.findViewById(R.id.sv);
+
         mContentTv = (TextView) rootView.findViewById(R.id.tv_article_content);
         mContentTv.setMovementMethod(LinkMovementMethod.getInstance());
 
+        mContentTv.setLineSpacing(0f, 1.5f);
+        mContentTv.setText(content);
+
         setDefaultTextView();
 
-        if (savedInstanceState != null) {
-            //TODO
-        }
-
         return rootView;
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (savedInstanceState != null) {
+            //TODO 恢复ScrollerView滚动位置
+            mScrollerX = savedInstanceState.getInt(SCROLLER_X);
+            mScrollerY = savedInstanceState.getInt(SCROLLER_Y);
+            mScrollerView.post(new Runnable() {
+                @Override
+                public void run() {
+                    mScrollerView.smoothScrollTo(mScrollerX, mScrollerY);
+//                    mScrollerView.scrollTo(scrollerX, scrollerY);
+                }
+            });
+        }
     }
 
     /**
@@ -174,6 +168,7 @@ public class ArticleFragment extends Fragment {
 //            Log.e(LOG_TAG, m.group() + " == > " + m.start() + " = " + m.end());
                 spanText.setSpan(new CustomClickableSpan(), m.start(), m.end(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
             }
+
             mContentTv.setText(spanText);
         }
     }
@@ -182,6 +177,9 @@ public class ArticleFragment extends Fragment {
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         //TODO 保存ScrollerView 滚动位置
+        outState.putInt(SCROLLER_X, mScrollerView.getScrollX());
+        outState.putInt(SCROLLER_Y, mScrollerView.getScrollY());
+//        outState.putInt(TEXTVIEW_VISIBLE, mContentTv.getViewTreeObserver().);
     }
 
     @Override
@@ -204,6 +202,66 @@ public class ArticleFragment extends Fragment {
         @Override
         public void updateDrawState(TextPaint ds) {
 //            ds.bgColor = getResources().getColor(R.color.colorAccent);
+        }
+    }
+
+    class HighLightTask extends AsyncTask<Integer, Void, Spannable> {
+
+        private Spannable highlightWords(int level) {
+            Spannable spanText = null;
+            if (level < 0) {
+                return null;
+            }
+            if (content != null) {
+                Pattern p = Pattern.compile(REGEX);
+                Matcher m = p.matcher(content);
+                spanText = Spannable.Factory.getInstance().newSpannable(content);
+                NCEDbHelper dbHelper = new NCEDbHelper(getActivity());
+                SQLiteDatabase db = dbHelper.getReadableDatabase();
+                Cursor cursor = null;
+                while (m.find()) {
+                    String[] args = {m.group()};
+                    cursor = db.query(
+                            NCEContract.WordEntry.TABLE_NAME,
+                            WORDS_COLUMNS,
+                            "word=?",
+                            args,
+                            null,
+                            null,
+                            null
+                    );
+                    if (cursor.moveToPosition(0) && cursor.getInt(COL_LEVEL) <= level) {
+                        spanText.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.colorPrimary)), m.start(), m.end(), Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
+                    }
+                }
+//                mContentTv.setText(spanText);
+                if (!cursor.isClosed()) {
+                    cursor.close();
+                }
+                db.close();
+                return spanText;
+            }
+            return null;
+        }
+
+        @Override
+        protected Spannable doInBackground(Integer... levels) {
+            Spannable text = highlightWords(levels[0]);
+            return text;
+        }
+
+        @Override
+        protected void onPostExecute(Spannable spannable) {
+            super.onPostExecute(spannable);
+            if (spannable != null) {
+                mContentTv.setText(spannable);
+//                mScrollerView.post(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        mScrollerView.smoothScrollTo(mScrollerX, mScrollerY);
+//                    }
+//                });
+            }
         }
     }
 }
